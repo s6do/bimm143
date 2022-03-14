@@ -1,0 +1,181 @@
+---
+title: "Class12"
+author: "Samuel Do (PID:A15803613)"
+date: "2/27/2022"
+output: html_document
+---
+
+# Differential Equation Analysis
+```{r}
+library(DESeq2)
+metaFile <- "GSE37704_metadata.csv"
+countFile <- "GSE37704_featurecounts.csv"
+
+colData = read.csv(metaFile, row.names=1)
+head(colData)
+
+countData = read.csv(countFile, row.names=1)
+head(countData)
+
+# [Q1] Complete the code below to remove the troublesome first column from countData
+# Note we need to remove the odd first $length col
+countData <- as.matrix(countData[,-1])
+head(countData)
+
+# [Q2] Complete the code below to filter countData to exclude genes (i.e. rows) where we have 0 read count across all samples (i.e. columns).
+# Filter count data where you have 0 read count across all samples.
+treated.sum <- rowSums(countData)
+sumcounts <- data.frame(treated.sum)
+zero.vals <- which(sumcounts[,1] <= 1, arr.ind=TRUE)
+mycounts <- countData[-zero.vals,]
+head(mycounts)
+```
+# Running DESeq2
+```{r}
+dds = DESeqDataSetFromMatrix(countData=mycounts,
+                             colData=colData,
+                             design=~condition)
+dds = DESeq(dds)
+dds
+```
+```{r}
+# DESeq results
+res = results(dds, contrast=c("condition", "hoxa1_kd", "control_sirna"))
+
+# [Q3] Call the summary() function on your results to get a sense of how many genes are up or down-regulated at the default 0.1 p-value cutoff.
+summary(res)
+# There are 4351 up-regulated genes and 4399 down-regulated genes
+```
+# Volcano Plot
+```{r}
+plot(res$log2FoldChange, -log(res$padj))
+
+# [Q4] Improve this plot by completing the below code, which adds color and axis labels
+
+mycols <- rep("gray", nrow(res))
+mycols[abs(res$log2FoldChange)>2] <- "red"
+inds <- (res$padj < 0.01) & (abs(res$log2FoldChange)>2)
+mycols[inds] <- "blue"
+
+plot(res$log2FoldChange, -log(res$padj), col=mycols,
+     xlab="Log2(FoldChange)", 
+     ylab="-Log(P-value)" )
+```
+# Adding gene annotation
+```{r}
+# [Q5] Use the mapIDs() function multiple times to add SYMBOL, ENTREZID and GENENAME annotation to our results by completing the code below.
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+
+columns(org.Hs.eg.db)
+
+res$symbol = mapIds(org.Hs.eg.db,
+                    keys=row.names(res), 
+                    keytype="ENSEMBL",
+                    column="SYMBOL",
+                    multiVals="first")
+
+res$entrez = mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="ENTREZID",
+                    multiVals="first")
+
+res$name =   mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="GENENAME",
+                    multiVals="first")
+
+head(res, 10)
+```
+```{r}
+# [Q6] Finally for this section let's reorder these results by adjusted p-value and save them to a CSV file in your current project directory.
+res = res[order(res$pvalue),]
+write.csv(res, file="deseq_results.csv")
+```
+# Pathway Analysis
+```{r}
+# BiocManager::install( c("pathview", "gage", "gageData") )
+library(pathview)
+library(gage)
+library(gageData)
+
+data(kegg.sets.hs)
+data(sigmet.idx.hs)
+
+# Signaling and metabolic pathways only
+kegg.sets.hs = kegg.sets.hs[sigmet.idx.hs]
+
+# First 3 Pathways
+head(kegg.sets.hs, 3)
+```
+```{r}
+foldchanges = res$log2FoldChange
+names(foldchanges) = res$entrez
+head(foldchanges)
+```
+```{r}
+# Results 
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+attributes(keggres)
+```
+```{r}
+# First few down (less) pathways
+head(keggres$less)
+pathview(gene.data=foldchanges, pathway.id="hsa04110")
+# A different PDF based output of the same data
+pathview(gene.data=foldchanges, pathway.id="hsa04110", kegg.native=FALSE)
+```
+```{r}
+# Top 5 up-regulated pathways 
+keggrespathways <- rownames(keggres$greater)[1:5]
+# Extracting 8 character long IDs part of each string
+keggresids = substr(keggrespathways, start=1, stop=8)
+keggresids
+pathview(gene.data=foldchanges, pathway.id=keggresids, species="hsa")
+```
+```{r}
+# [Q7] Can you do the same procedure as above to plot the pathview figures for the top 5 down-reguled pathways?
+
+# Top 5 down-regulated pathways
+keggrespathways <- rownames(keggres$less)[1:5]
+# Extracting 8 character long IDs part of each string
+keggresids = substr(keggrespathways, start=1, stop=8)
+keggresids
+pathview(gene.data=foldchanges, pathway.id=keggresids, species="hsa")
+
+```
+# Gene Ontology
+```{r}
+data(go.sets.hs)
+data(go.subs.hs)
+
+# Biological Process subset of GO
+gobpsets = go.sets.hs[go.subs.hs$BP]
+
+gobpres = gage(foldchanges, gsets=gobpsets, same.dir=TRUE)
+
+lapply(gobpres, head)
+```
+# Reactome Analysis
+```{r}
+sig_genes <- res[res$padj <= 0.05 & !is.na(res$padj), "symbol"]
+print(paste("Total number of significant genes:", length(sig_genes)))
+write.table(sig_genes, file="significant_genes.txt", row.names=FALSE, col.names=FALSE, quote=FALSE)
+```
+```{r}
+# Perform pathway analysis online go to the Reactome website (https://reactome.org/PathwayBrowser/#TOOL=AT)
+
+# [Q8] What pathway has the most significant “Entities p-value”? Do the most significant pathways listed match your previous KEGG results? What factors could cause differences between the two methods?
+
+# The Endosomal/Vacuolar pathway has the most significant Entities p-value of 2.04E(-4). However there are no significant pathways listed that exactly match with the previous KEGG results. These differences is likely due to the 2973 entities in "signficant_genes.txt" that were not found by the Reactome website. 
+```
+```{r}
+# Perform Gene Set GO Enrichment online go to the website (http://www.geneontology.org/page/go-enrichment-analysis)
+
+# [Q9] What pathway has the most significant “Entities p-value”? Do the most significant pathways listed match your previous KEGG results? What factors could cause differences between the two methods?
+
+# The pathway with the most signficant Entities p-value is "Detection of chemical stimulus involved in sensory perception". These pathways do not match the previous KEGG results. This is likely due to GO Enrichment method determining significant pathways to a much lower p-value, as this method finds pathways with p-values as low as 6.62E(-64), which is much lower than the p-values determined in the KEGG results.
+```
+

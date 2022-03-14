@@ -1,0 +1,115 @@
+---
+title: "Class06"
+author: "Samuel Do (PID:A15803613)"
+date: "2/3/2022"
+output: pdf_document
+---
+
+# Exploring R functions
+
+#Grade calculations
+```{r}
+#Input fectors
+student1 <- c(100, 100, 100, 100, 100, 100, 100, 90)
+student2 <- c(100, NA, 90, 90, 90, 90, 97, 80)
+student3 <- c(90, NA, NA, NA, NA, NA, NA, NA)
+
+```
+```{r}
+mean(student1)
+mean(student2, na.rm = TRUE)
+mean(student3, na.rm = TRUE)
+```
+#Determining function is.na()
+```{r}
+student2
+is.na(student2)
+```
+#Use is.na() to get NA values and convert to zero
+```{r}
+student2[is.na(student2)] <- 0
+student2
+student3[is.na(student3)] <- 0
+student3
+```
+#Use this logical to calculate now calculate grade
+```{r}
+mean(student1)
+mean(student2)
+mean(student3)
+```
+#Using min()/which.min() 
+# min() finds lowest value
+# which.min() finds location of lowest value in vector
+```{r}
+min(student1)
+which.min(student1)
+```
+#Using this function to remove lowest grade
+```{r}
+student1[-which.min(student1)]
+student2[-which.min(student2)]
+student3[-which.min(student3)]
+mean(student1[-which.min(student1)])
+mean(student2[-which.min(student2)])
+mean(student3[-which.min(student3)])
+```
+# Make function grade() to do this
+# All R funcitons have 3 things
+# Name(grade); Input Arguments(scores); body(does work)
+```{r}
+grade <- function(x, na.rm = FALSE) {x[is.na(x)] <- 0  
+  mean(x[-which.min(x)]) }
+grade(student1)
+grade(student2)
+grade(student3)
+```
+# Now use grade() on data set for assignment
+
+# [Q1]Write a function grade() to determine an overall grade from a vector of student homework
+assignment scores dropping the lowest single score. If a student misses a homework (i.e. has an NA value) this can be used as a score to be potentially dropped. Your final function should be adquately explained with code comments and be able to work on an example class gradebook
+such as this one in CSV format: “https://tinyurl.com/gradeinput” 
+```{r}
+gradebook <- read.csv("https://tinyurl.com/gradeinput", row.names = 1)
+head(gradebook)
+```
+#Now use apply() function to apply grade() to whole class
+```{r}
+apply(gradebook, 1, grade)
+scores <- apply(gradebook, 1, grade)
+```
+# [Q2] Who is the top scoring student overall in the gradebook?
+```{r}
+which.max(scores)
+max(scores)
+```
+# Student 18 has the highest score with a score of 94.5
+
+# [Q3] Which homework was toughest on students?
+```{r}
+# apply() new function to get mean/median HW scores
+HWmean <- apply(gradebook, 2, mean, na.rm = TRUE)
+HWmean
+
+HWmedian <- apply(gradebook, 2, median, na.rm = TRUE)
+HWmedian
+# Find minimum mean/median
+which.min(HWmean)
+min(HWmean)
+
+which.min(HWmedian)
+min(HWmedian)
+
+```
+# HW2 was the toughest since it had the lowest median score of 72.5, but HW3 could be considered the toughest since it had the lowest mean score of 80.8
+
+# [Q4] Which HW correlates most with the average student score?
+```{r}
+gradebook2 <- gradebook
+gradebook2[is.na(gradebook2)] <- 0
+apply(gradebook2, 2, cor, scores)
+```
+# HW5 has the highest correlation to the student's average performance.
+
+# [Q5]
+# Select "Knit to Save"
